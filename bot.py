@@ -43,6 +43,18 @@ class ReimburseView(discord.ui.View):
     async def mark_processed_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         try:
             worksheet.update_cell(self.row_number, 10, "yes")
+            data = worksheet.get_all_values()
+            if not data:
+                return  # No data in the sheet
+
+            headers = data[0]
+            # Get the last row (newest entry)
+            last_row = data[-1]
+            # Convert the row into a dictionary using headers
+            global last_entry
+            last_entry = dict(zip(headers, last_row))
+
+
             await interaction.response.send_message("REIMBURSEMENT PAID YAYYYY!", ephemeral=False)
         except Exception as e:
             await interaction.response.send_message(f"Failed to update the row: {e}", ephemeral=True)
