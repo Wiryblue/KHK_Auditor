@@ -58,16 +58,24 @@ class ReimburseView(discord.ui.View):
 
 # ---------------- Background Watcher ----------------
 class ReinbursementWatcher:
-    """Watches the Reinbursement sheet for new entries and posts embeds with a Mark Paid button."""
+    """
+    Watches the Reinbursement sheet for new rows and posts embeds
+    in the moderator channel with a 'Mark Paid' button.
+    """
 
     def __init__(self, bot: commands.Bot, handler: SheetHandler, config: dict):
         self.bot = bot
         self.handler = handler
         self.config = config
-        self.last_row = handler.get_last_nonempty_row_index()
         self.interval = config.get("poll_interval_seconds", 15)
+
+        # Track last processed row (excluding blank/form headers)
+        rows = self.handler.reimb_rows()
+        self.last_row = len(rows) if rows else 1
+
         self.poll_reinbursement.change_interval(seconds=self.interval)
         self.poll_reinbursement.start()
+        print(f"[INIT] Reinbursement watcher initialized at row {self.last_row}")
 
     def cog_unload(self):
         self.poll_reinbursement.cancel()
@@ -75,18 +83,26 @@ class ReinbursementWatcher:
     @tasks.loop(seconds=15.0)
     async def poll_reinbursement(self):
         try:
-            ws = self.handler.reimb_ws
-            current_last = self.handler.get_last_nonempty_row_index()
-            if current_last <= self.last_row:
-                return
+            # Fetch all valid rows and strip out empties
+            rows = self.handler.reimb_rows()
+            nonempty = [r for r in rows if any(c.strip() for c in r)]
+            current_last = len(nonempty)
 
-            # Only post the truly new rows (can be >1 if multiple were added)
+            if current_last <= self.last_row:
+                return  # nothing new yet
+
+            new_count = current_last - self.last_row
+            print(f"[UPDATE] Detected {new_count} new reimbursement row(s).")
+
             for row_idx in range(self.last_row + 1, current_last + 1):
-                new_row = ws.row_values(row_idx)
-                # Skip already-paid lines
+                new_row = nonempty[row_idx - 1]  # 0-based index in list
+
+                # Skip if already marked paid
                 if len(new_row) > 9 and str(new_row[9]).strip().lower() == "yes":
+                    print(f"[SKIP] Row {row_idx} already marked paid.")
                     continue
 
+                # Parse key fields safely
                 name = new_row[1] if len(new_row) > 1 else "N/A"
                 position = new_row[2] if len(new_row) > 2 else "N/A"
                 method = new_row[4] if len(new_row) > 4 else "N/A"
@@ -95,6 +111,7 @@ class ReinbursementWatcher:
                 reason = new_row[7] if len(new_row) > 7 else "N/A"
                 receipt = new_row[8] if len(new_row) > 8 else "N/A"
 
+                # --- Build embed ---
                 embed = discord.Embed(
                     title="💸 New Reimbursement Request",
                     color=discord.Color.green(),
@@ -106,8 +123,13 @@ class ReinbursementWatcher:
                 embed.add_field(name="Amount ($)", value=amount, inline=True)
                 embed.add_field(name="Venmo/PayPal", value=venmo, inline=True)
                 embed.add_field(name="Reason", value=reason, inline=False)
+                embed.add_field(
+                    name="Links",
+                    value="[Venmo](https://venmo.com) | [PayPal](https://paypal.com)",
+                    inline=True
+                )
 
-                # Show Drive image preview if possible
+                # Receipt thumbnail if Google Drive link
                 if isinstance(receipt, str) and "drive.google.com" in receipt:
                     parsed = urllib.parse.urlparse(receipt)
                     query = urllib.parse.parse_qs(parsed.query)
@@ -116,14 +138,18 @@ class ReinbursementWatcher:
                         embed.set_image(url=f"https://drive.google.com/thumbnail?sz=w640&id={file_id}")
                 embed.add_field(name="Receipt", value=receipt or "N/A", inline=False)
 
+                # Add interactive view
                 view = ReimburseView(row_idx, handler=self.handler)
+
                 channel = self.bot.get_channel(self.config["moderator_channel_id"])
                 if channel:
                     await channel.send(content="@everyone", embed=embed, view=view)
+                    print(f"[POST] Sent reimbursement row {row_idx} → Discord.")
                 else:
                     print("[WARN] Moderator channel not found.")
 
-            self.last_row = current_last
+            self.last_row = current_last  # update pointer
+            print(f"[SYNC] Updated last_row → {self.last_row}")
 
         except Exception as e:
             print(f"[ERROR] Reinbursement poll failed: {e}")
@@ -131,8 +157,7 @@ class ReinbursementWatcher:
     @poll_reinbursement.before_loop
     async def before_poll(self):
         await self.bot.wait_until_ready()
-        print(f"[INIT] Reinbursement watcher started (interval={self.interval}s).")
-
+        print(f"[READY] Reinbursement watcher active, polling every {self.interval}s.")
 
 # ---------------- Slash Commands ----------------
 class Reimburse(commands.Cog):
