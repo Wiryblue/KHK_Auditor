@@ -105,11 +105,11 @@ class ReinbursementWatcher:
                 # Parse key fields safely
                 name = new_row[1] if len(new_row) > 1 else "N/A"
                 position = new_row[2] if len(new_row) > 2 else "N/A"
-                method = new_row[4] if len(new_row) > 4 else "N/A"
-                amount = new_row[5] if len(new_row) > 5 else "N/A"
-                venmo = new_row[6] if len(new_row) > 6 else "N/A"
-                reason = new_row[7] if len(new_row) > 7 else "N/A"
-                receipt = new_row[8] if len(new_row) > 8 else "N/A"
+                method = new_row[3] if len(new_row) > 3 else "N/A"
+                amount = new_row[4] if len(new_row) > 4 else "N/A"
+                venmo = new_row[5] if len(new_row) > 5 else "N/A"
+                reason = new_row[6] if len(new_row) > 6 else "N/A"
+                receipt = new_row[7] if len(new_row) > 7 else "N/A"
 
                 # --- Build embed ---
                 embed = discord.Embed(
@@ -204,77 +204,6 @@ class Reimburse(commands.Cog):
         except Exception as e:
             await interaction.response.send_message(f"⚠️ Failed to load reimbursements: {e}", ephemeral=True)
 
-    @app_commands.command(name="budget", description="Show budget by office or overall summary.")
-    @app_commands.describe(office="Filter by office name (optional)")
-    async def budget(self, interaction: discord.Interaction, office: str = None):
-        try:
-            rows = self.handler.budget_rows()
-            if not rows or len(rows) <= 1:
-                await interaction.response.send_message("⚠️ Budget sheet seems empty.", ephemeral=True)
-                return
-
-            header = [h.strip().lower() for h in rows[0]]
-            office_col = 0  # "Office"
-            # "Amount" = allocated total; ensure it's not "used" or "remaining"
-            alloc_col = next((i for i, h in enumerate(header) if "amount" in h and "used" not in h and "remain" not in h), 2)
-            used_col = next((i for i, h in enumerate(header) if "used" in h), 4)
-            remain_col = next((i for i, h in enumerate(header) if "remain" in h), 5)
-
-            def to_float(x):
-                try:
-                    return float(str(x).replace("$", "").replace(",", "").strip())
-                except Exception:
-                    return 0.0
-
-            entries = []
-            for row in rows[1:]:
-                if len(row) <= remain_col:
-                    continue
-                name = (row[office_col] or "").strip()
-                if not name:
-                    continue
-                allocated = to_float(row[alloc_col])
-                used = to_float(row[used_col])
-                remaining = to_float(row[remain_col])
-                if office and office.lower() not in name.lower():
-                    continue
-                entries.append((name, allocated, used, remaining))
-
-            if not entries:
-                await interaction.response.send_message(
-                    f"⚠️ No results for '{office}'." if office else "⚠️ No budget entries found.",
-                    ephemeral=True
-                )
-                return
-
-            embed = discord.Embed(
-                title=f"💰 {'Budget for ' + office if office else 'Budget Overview'} (Rows 8–36)",
-                color=discord.Color.gold(),
-                timestamp=datetime.now(timezone.utc),
-            )
-
-            total_alloc = total_used = total_remain = 0.0
-            for name, alloc, used, remain in entries:
-                total_alloc += alloc
-                total_used += used
-                total_remain += remain
-                embed.add_field(
-                    name=name,
-                    value=f"**Allocated:** ${alloc:,.2f}\n**Used:** ${used:,.2f}\n**Remaining:** ${remain:,.2f}",
-                    inline=True,
-                )
-
-            if not office:
-                embed.add_field(
-                    name="**__Totals__**",
-                    value=f"**Allocated:** ${total_alloc:,.2f}\n**Used:** ${total_used:,.2f}\n**Remaining:** ${total_remain:,.2f}",
-                    inline=False,
-                )
-
-            await interaction.response.send_message(embed=embed, ephemeral=False)
-
-        except Exception as e:
-            await interaction.response.send_message(f"⚠️ Failed to load budget: {e}", ephemeral=True)
 
 
 # ---------------- Cog Entrypoint ----------------
