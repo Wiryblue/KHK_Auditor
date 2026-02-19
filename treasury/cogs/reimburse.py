@@ -39,7 +39,6 @@ class ReimburseView(discord.ui.View):
                 amount = float(str(amount_raw).replace("$", "").replace(",", ""))
             except Exception:
                 amount = 0.0
-            self.handler.add_to_budget_used(category, amount)
 
             # Update UI
             button.style = discord.ButtonStyle.success
