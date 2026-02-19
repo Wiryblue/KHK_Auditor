@@ -10,7 +10,7 @@ class ReimburseView(discord.ui.View):
     @discord.ui.button(label="Mark Paid", style=discord.ButtonStyle.danger, custom_id="mark_processed")
     async def mark_processed(self, interaction: discord.Interaction, button: discord.ui.Button):
         try:
-            self.worksheet.update_cell(self.row_number, 10, "yes")
+            self.worksheet.update_cell(self.row_number, 10, "Sent")
             button.style = discord.ButtonStyle.success
             button.label = "✅ Paid"
 
