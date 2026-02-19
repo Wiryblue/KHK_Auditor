@@ -57,6 +57,5 @@ class SheetHandler:
             print(f"[ERROR] Could not determine last row: {e}")
             return 1
 
-    # ----------- Budget Update -----------
 
 

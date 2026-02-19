@@ -191,7 +191,7 @@ class Reimburse(commands.Cog):
                 position = row[2] if len(row) > 2 else "N/A"
                 amount = row[5] if len(row) > 5 else "N/A"
                 paid = row[paid_col] if len(row) > paid_col else "No"
-                status = "✅ Paid" if str(paid).strip().lower() == "yes" else "⏳ Pending"
+                status = "✅ Paid" if str(paid).strip().lower() == "Sent" else "⏳ Pending"
                 embed.add_field(
                     name=f"{name} — {position} (${amount})",
                     value=f"Status: {status}",
